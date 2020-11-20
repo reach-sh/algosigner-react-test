@@ -1,3 +1,20 @@
+// XXX this whole file is not needed anymore?
+
+// XXX copied from js-algorand-sdk
+function getAccceptFormat(query) {
+  if (query !== undefined && query.hasOwnProperty('format'))
+      switch(query.format) {
+          case 'msgpack':
+              return 'application/msgpack';
+          case 'json':
+              return 'application/json';
+          default:
+              return 'application/json';
+      }
+  else
+      return "application/json"
+}
+
 export default class AlgoSignerClient {
   constructor(AlgoSigner, ledger, clientName, opts = {}) {
     this.AlgoSigner = AlgoSigner;
@@ -17,12 +34,12 @@ export default class AlgoSignerClient {
     this.debug('get args', {path, query, requestHeaders});
     const {AlgoSigner, clientName, ledger} = this;
     void(requestHeaders); // XXX make sure this is empty?
-    void(query); // XXX append this into the path?
     // XXX handle non-200 results?
-    const body = await AlgoSigner[clientName]({
-        ledger,
-        path,
-    });
+    path = Object.keys(query).length === 0 ? path
+      : path + '?' + (new URLSearchParams(query)).toString();
+    const req = {ledger, path};
+    this.debug(`sending get req via ${clientName}`, req);
+    const body = await AlgoSigner[clientName](req);
     const ret = {body}; // XXX status code?
     this.debug('get return body', body);
     return ret;

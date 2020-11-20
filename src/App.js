@@ -1,10 +1,12 @@
 import React from 'react';
 import './App.css';
-import AlgoSignerClient from './AlgoSignerClient';
+// import AlgoSignerClient from './AlgoSignerClient';
 import * as reach from './lib/ALGO';
 import algosdk from 'algosdk';
 
 const AlgoSigner = window.AlgoSigner;
+
+let didMutateWaitPort = false;
 
 class App extends React.Component {
   async doTheThing() {
@@ -13,36 +15,50 @@ class App extends React.Component {
       throw Error(`no AlgoSigner`);
     }
 
-    AlgoSigner.connect();
-    const ledger = 'TestNet';
-    const c = new AlgoSignerClient(AlgoSigner, ledger, 'algod', {debug: true});
-    const algodClient = new algosdk.Algodv2(c);
+    await AlgoSigner.connect();
+    // const ledger = 'TestNet';
+    // const c = new AlgoSignerClient(AlgoSigner, ledger, 'algod', {debug: true});
+    // const algodClient = new algosdk.Algodv2(c);
+    // const token = {'X-API-Key': 'REDACTED'};
+    // const baseServer = 'https://testnet-algorand.api.purestake.io/ps2';
+    // const port = '';
+    // const algodClient = new algosdk.Algodv2(token, baseServer, port);
 
-    const ic = new AlgoSignerClient(AlgoSigner, ledger, 'indexer');
-    const indexer = new algosdk.Indexer(ic);
+    // const baseServerI = 'https://testnet-algorand.api.purestake.io/idx2';
+    // const portI = '';
+    // const indexer = new algosdk.Indexer(token, baseServerI, portI);
+    // const ic = new AlgoSignerClient(AlgoSigner, ledger, 'indexer');
+    // const indexer = new algosdk.Indexer(ic);
 
-    const res = await algodClient.getTransactionParams().do()
-    const params = JSON.stringify(res, undefined, 2);
-    const res2 = await algodClient.compile('int 0').do();
-    const compiled = JSON.stringify(res2, undefined, 2);
-    this.setState({params, compiled});
+    // const res = await algodClient.getTransactionParams().do()
+    // const params = JSON.stringify(res, undefined, 2);
+    // const res2 = await algodClient.compile('int 0').do();
+    // const compiled = JSON.stringify(res2, undefined, 2);
+    // this.setState({params, compiled});
 
-    reach.setAlgodClient(algodClient);
-    reach.setIndexer(indexer);
+    // reach.setAlgodClient(algodClient);
+    // reach.setIndexer(indexer);
+    if (!didMutateWaitPort) {
+      reach.setWaitPort(false);
+      didMutateWaitPort = true;
+    }
     const mnemonic_test1 = 'valley amazing tonight circle horse much exclude speak fog bomb jeans secret false legal other actor clerk smile egg identify rocket remind fire ability genius';
     const test1 = await reach.newAccountFromMnemonic(mnemonic_test1);
     console.log({acc: test1});
 
-    const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
-    const alice = await reach.newAccountFromMnemonic(mnemonic_alice);
+    // const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
+    // const alice = await reach.newAccountFromMnemonic(mnemonic_alice);
 
     // XXX make AlgoSigner not an arg here.
+    // console.log('attempting to transfer...');
+    // await reach.transfer(test1, alice, reach.parseCurrency(22), AlgoSigner, ledger);
+    // console.log('...transfer successful');
+    const ledger = 'Localhost';
+    const faucet = await reach.getFaucet();
+    console.log({faucet});
     console.log('attempting to transfer...');
-    await reach.transfer(test1, alice, reach.parseCurrency(22), AlgoSigner, ledger);
+    await reach.transfer(faucet, test1, reach.parseCurrency(101), AlgoSigner, ledger);
     console.log('...transfer successful');
-    // const faucet = await reach.getFaucet();
-    // console.log({faucet});
-    // await reach.transfer(faucet, test1, reach.parseCurrency(101));
 
     const bal = await reach.balanceOf(test1);
     console.log(`balance:`)

@@ -167,9 +167,12 @@ export const T_Data = (coMap) => {
 };
 // Common interface exports
 // TODO: read token from scripts/algorand-devnet/algorand_data/algod.token
-const token = process.env.ALGO_TOKEN || 'c87f5580d7a866317b4bfe9e8b8d1dda955636ccebfa88c12b414db208dd9705';
-const server = process.env.ALGO_SERVER || 'http://localhost';
-const port = process.env.ALGO_PORT || 4180;
+const token = {'X-Algo-API-Token': process.env.ALGO_TOKEN || 'c87f5580d7a866317b4bfe9e8b8d1dda955636ccebfa88c12b414db208dd9705'};
+// const token = process.env.ALGO_TOKEN || 'c87f5580d7a866317b4bfe9e8b8d1dda955636ccebfa88c12b414db208dd9705';
+// const server = process.env.ALGO_SERVER || 'http://localhost';
+// const port = process.env.ALGO_PORT || 4180;
+const server = process.env.ALGO_SERVER || '/algod';
+const port = '';
 const [getAlgodClient, setAlgodClient] = replaceableThunk(async () => {
   console.log(`setting algodClient to default`);
   await wait1port(server, port);
@@ -177,8 +180,10 @@ const [getAlgodClient, setAlgodClient] = replaceableThunk(async () => {
 });
 export { setAlgodClient };
 const itoken = process.env.ALGO_INDEXER_TOKEN || 'reach-devnet';
-const iserver = process.env.ALGO_INDEXER_SERVER || 'http://localhost';
-const iport = process.env.ALGO_INDEXER_PORT || 8980;
+// const iserver = process.env.ALGO_INDEXER_SERVER || 'http://localhost';
+// const iport = process.env.ALGO_INDEXER_PORT || 8980;
+const iserver = process.env.ALGO_INDEXER_SERVER || '/indexer';
+const iport = '';
 const [getIndexer, setIndexer] = replaceableThunk(async () => {
   console.log(`setting indexer to default`);
   await wait1port(iserver, iport);
@@ -192,7 +197,10 @@ const [getFaucet, setFaucet] = replaceableThunk(async () => {
 });
 export { getFaucet, setFaucet };
 // Helpers
+const [getWaitPort, setWaitPort] = replaceableThunk(() => true);
+export { setWaitPort };
 async function wait1port(theServer, thePort) {
+  if (!getWaitPort()) return;
   thePort = typeof thePort === 'string' ? parseInt(thePort, 10) : thePort;
   const { hostname } = url.parse(theServer);
   const args = {
@@ -225,15 +233,21 @@ const waitForConfirmation = async (txId, untilRound) => {
   } while (lastRound < untilRound);
   throw { type: 'waitForConfirmation', txId, untilRound, lastRound };
 };
-const sendAndConfirm_AlgoSigner = async (AlgoSigner, ledger, tx, tx_unsigned) => {
+const sendAndConfirm_AlgoSigner = async (AlgoSigner, ledger, tx, txOrig) => {
   console.log('tx_unsigned');
-  console.log(tx_unsigned);
-  const txID = tx_unsigned.txID().toString();
-  const untilRound = tx_unsigned.lastRound;
+  console.log(txOrig);
+  // Note: tx.txID does not match tx_unsigned.txID()
+  const txID = tx.txID; //  tx_unsigned.txID().toString();
+  const untilRound = txOrig.lastRound;
+  console.log('blob');
+  console.log(tx.blob);
+  const req = (await getAlgodClient()).sendRawTransaction(Buffer.from(tx.blob, 'base64'));
   try {
     console.log('attempting to send...');
-    await AlgoSigner.send({ledger, tx: tx.blob});
+    // const sendRes = await AlgoSigner.send({ledger, tx: tx.blob});
+    const sendRes = await req.do();
     console.log('...sent');
+    console.log(sendRes);
   } catch (e) {
     throw { type: 'AlgoSigner.send', e };
   }
@@ -293,7 +307,7 @@ const getTxnParams = async () => {
 
 // https://github.com/PureStake/algosigner/blob/5ccfafceaece07e6c8594711a4d543756f4ab0d3/docs/dApp-integration.md#algosignersigntxnobject
 const sign_and_send_sync_AlgoSigner = async (AlgoSigner, ledger, txnParams, note_str, label, txnOrig) => {
-  // Make a copy because reasons
+  // Make a copy with just the properties, because reasons
   const txn = {...txnOrig};
   console.log('txn before:');
   console.log(txn);
@@ -316,6 +330,7 @@ const sign_and_send_sync_AlgoSigner = async (AlgoSigner, ledger, txnParams, note
   console.log('txn after:');
   console.log(txn);
   const txn_s = await AlgoSigner.sign(txn);
+  // const txn_s = await AlgoSigner.sign(txnOrig);
   console.log('signed txn:');
   console.log(txn_s);
   try {
