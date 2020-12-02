@@ -165,6 +165,12 @@ export const T_Data = (coMap) => {
     },
   };
 };
+// function strToUint8Array(b, enc='utf8') {
+//   return new Uint8Array(Buffer.from(b, enc));
+// }
+function uint8ArrayToStr(a, enc='utf8') {
+  return Buffer.from(a).toString(enc);
+}
 // Common interface exports
 // TODO: read token from scripts/algorand-devnet/algorand_data/algod.token
 const token = {'X-Algo-API-Token': process.env.ALGO_TOKEN || 'c87f5580d7a866317b4bfe9e8b8d1dda955636ccebfa88c12b414db208dd9705'};
@@ -233,11 +239,11 @@ const waitForConfirmation = async (txId, untilRound) => {
   } while (lastRound < untilRound);
   throw { type: 'waitForConfirmation', txId, untilRound, lastRound };
 };
-const sendAndConfirm_AlgoSigner = async (AlgoSigner, ledger, tx, txOrig) => {
+const sendAndConfirm_AlgoSigner = async (tx, txOrig, txID) => {
   console.log('tx_unsigned');
   console.log(txOrig);
   // Note: tx.txID does not match tx_unsigned.txID()
-  const txID = tx.txID; //  tx_unsigned.txID().toString();
+  // const txID = tx.txID; //  tx_unsigned.txID().toString();
   const untilRound = txOrig.lastRound;
   console.log('blob');
   console.log(tx.blob);
@@ -257,10 +263,26 @@ const sendAndConfirm_AlgoSigner = async (AlgoSigner, ledger, tx, txOrig) => {
   console.log(ret);
   return ret;
 }
-const sendAndConfirm = async (stx_or_stxs, txn) => {
-  const txID = txn.txID().toString();
-  const untilRound = txn.lastRound;
-  const req = (await getAlgodClient()).sendRawTransaction(stx_or_stxs);
+const sendAndConfirm = async (stx_or_stxs) => {
+  console.log('sendAndConfirm');
+  console.log(stx_or_stxs);
+  let {lastRound, txID} = stx_or_stxs;
+  let sendme = stx_or_stxs.tx;
+  if (Array.isArray(stx_or_stxs)) {
+    if (stx_or_stxs.length === 0) {
+      console.log(`Sending nothing... why...?`);
+      return;
+    }
+    console.log(`Sending multiple...`)
+    lastRound = stx_or_stxs[0].lastRound;
+    txID = stx_or_stxs[0].txID;
+    sendme = stx_or_stxs.map((stx) => stx.tx);
+  } else {
+    console.log(`sending just one...`);
+  }
+  // const txID = txn.txID().toString();
+  const untilRound = lastRound; // txn.lastRound;
+  const req = (await getAlgodClient()).sendRawTransaction(sendme);
   // @ts-ignore XXX
   debug(`sendAndConfirm: ${base64ify(req.txnBytesToPost)}`);
   try {
@@ -305,30 +327,64 @@ const getTxnParams = async () => {
   }
 };
 
-// https://github.com/PureStake/algosigner/blob/5ccfafceaece07e6c8594711a4d543756f4ab0d3/docs/dApp-integration.md#algosignersigntxnobject
-const sign_and_send_sync_AlgoSigner = async (AlgoSigner, ledger, txnParams, note_str, label, txnOrig) => {
+// genesisHash, note_str are possibly optional
+const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   // Make a copy with just the properties, because reasons
   const txn = {...txnOrig};
   console.log('txn before:');
-  console.log(txn);
+  console.log({...txnOrig});
   // Weirdly, AlgoSigner *requires* the note to be a string
-  txn.note = note_str;
+  if (note_str) {
+    txn.note = note_str;
+  } else if (txn.note) {
+    txn.note = uint8ArrayToStr(txn.note, 'utf8');
+  }
   // Also weirdly:
   // "Creation of PaymentTx has extra or invalid fields: name,tag,appArgs."
   delete txn.name;
   delete txn.tag;
-  delete txn.appArgs;
+  // "Creation of ApplTx has extra or invalid fields: name,tag."
+  if (txn.type !== 'appl') {
+    delete txn.appArgs;
+  } else {
+    txn.appArgs = [uint8ArrayToStr(txn.appArgs, 'base64')]; // XXX ?????
+  }
+
   // Validation failed for transaction because of invalid properties [from,to]
-  txn.from = algosdk.encodeAddress(txn.from.publicKey);
-  txn.to = algosdk.encodeAddress(txn.to.publicKey);
+  if (txn.from && txn.from.publicKey) {
+    txn.from = algosdk.encodeAddress(txn.from.publicKey);
+  }
+  if (txn.to && txn.to.publicKey) {
+    txn.to = algosdk.encodeAddress(txn.to.publicKey);
+  }
   // Uncaught (in promise) First argument must be a string, Buffer, ArrayBuffer, Array, or array-like object.
   // No idea what it's talking about, but probably GenesisHash?
-  txn.genesisHash = txnParams.genesisHash; // replaces Uint8Array w/ string
+  if (genesisHash) {
+    txn.genesisHash = genesisHash; // replaces Uint8Array w/ string
+  } else if (txn.genesisHash) {
+    txn.genesisHash = uint8ArrayToStr(txn.genesisHash, 'base64');
+  }
   // uncaught (in promise) lease must be a Uint8Array.
   delete txn.lease; // it is... but how about we just delete it instead
 
+  // Some more uint8Array BS
+  if (txn.appApprovalProgram) {
+    txn.appApprovalProgram = uint8ArrayToStr(txn.appApprovalProgram, 'base64');
+  }
+  if (txn.appClearProgram) {
+    txn.appClearProgram = uint8ArrayToStr(txn.appClearProgram, 'base64');
+  }
+
   console.log('txn after:');
   console.log(txn);
+  return txn;
+  // const txn_s = await AlgoSigner.sign(txn);
+}
+
+// https://github.com/PureStake/algosigner/blob/5ccfafceaece07e6c8594711a4d543756f4ab0d3/docs/dApp-integration.md#algosignersigntxnobject
+const sign_and_send_sync_AlgoSigner = async (AlgoSigner, ledger, txnParams, note_str, label, txnOrig) => {
+  console.log(`XXX this should be dead code XXX`);
+  const txn = clean_for_AlgoSigner(txnOrig, txnParams.genesisHash, note_str)
   const txn_s = await AlgoSigner.sign(txn);
   // const txn_s = await AlgoSigner.sign(txnOrig);
   console.log('signed txn:');
@@ -340,11 +396,12 @@ const sign_and_send_sync_AlgoSigner = async (AlgoSigner, ledger, txnParams, note
     throw Error(`${label} txn failed (AlgoSigner@${ledger}):\n${JSON.stringify(txn)}\nwith:\n${JSON.stringify(e)}`);
   }
 }
-const sign_and_send_sync = async (label, sk, txn) => {
-  const txn_s = txn.signTxn(sk);
+const sign_and_send_sync = async (label, networkAccount, txn, genesisHash, note_str) => {
+  const txn_s = await signTxn(networkAccount, txn, genesisHash, note_str);
   try {
-    return await sendAndConfirm(txn_s, txn);
+    return await sendAndConfirm(txn_s);
   } catch (e) {
+    console.log(e);
     throw Error(`${label} txn failed:\n${JSON.stringify(txn)}\nwith:\n${JSON.stringify(e)}`);
   }
 };
@@ -362,7 +419,7 @@ export const transfer = async (from, to, value, AlgoSigner = null, ledger = null
     // because it's clearly not compatible
     return await sign_and_send_sync_AlgoSigner(AlgoSigner, ledger, params, note_str, label, txn);
   } else {
-    return await sign_and_send_sync(label, sender.sk, txn);
+    return await sign_and_send_sync(label, sender, txn, params.genesisHash, note_str);
   }
 };
 // XXX I'd use x.replaceAll if I could (not supported in this node version), but it would be better to extend ConnectorInfo so these are functions
@@ -446,6 +503,32 @@ const doQuery = async (dhead, query) => {
   const txn = res.transactions[0];
   return txn;
 };
+async function signTxn(networkAccount, txnOrig, genesisHash, note_str) {
+  const {sk, AlgoSigner} = networkAccount;
+  if (sk) {
+    const tx = txnOrig.signTxn(sk);
+    return {
+      tx,
+      txID: txnOrig.txID().toString(),
+      lastRound: txnOrig.lastRound,
+    };
+  } else if (AlgoSigner) {
+    // TODO: clean up txn before signing
+    const txn = clean_for_AlgoSigner(txnOrig, genesisHash, note_str);
+
+    console.log('AlgoSigner.sign ...');
+    const stx_obj = await AlgoSigner.sign(txn);
+    console.log('...signed');
+    console.log({stx_obj});
+    return {
+      tx: Buffer.from(stx_obj.blob, 'base64'),
+      txID: stx_obj.txID,
+      lastRound: txnOrig.lastRound,
+    };
+  } else {
+    throw Error(`networkAccount has neither sk nor AlgoSigner: ${JSON.stringify(networkAccount)}`);
+  }
+}
 export const connectAccount = async (networkAccount) => {
   const indexer = await getIndexer();
   const thisAcc = networkAccount;
@@ -470,6 +553,7 @@ export const connectAccount = async (networkAccount) => {
     debug(`${shad}: attach ${ApplicationID} created at ${lastRound}`);
     const bin_comp = await compileFor(bin, ApplicationID);
     await verifyContract(ctcInfo, bin);
+    console.log(bin_comp); // XXX
     const ctc_prog = algosdk.makeLogicSig(bin_comp.ctc.result, []);
     const wait = async (delta) => {
       return await waitUntilTime(bigNumberify(lastRound).add(delta));
@@ -543,12 +627,12 @@ export const connectAccount = async (networkAccount) => {
           ...txnFromContracts,
         ];
         algosdk.assignGroupID(txns);
-        const sign_me = (x) => x.signTxn(thisAcc.sk);
-        const txnAppl_s = sign_me(txnAppl);
+        const sign_me = async (x) => await signTxn(thisAcc, x);
+        const txnAppl_s = await sign_me(txnAppl);
         const txnFromHandler_s = algosdk.signLogicSigTransactionObject(txnFromHandler, handler_with_args).blob;
         debug(`txnFromHandler_s: ${base64ify(txnFromHandler_s)}`);
-        const txnToHandler_s = sign_me(txnToHandler);
-        const txnToContract_s = sign_me(txnToContract);
+        const txnToHandler_s = await sign_me(txnToHandler);
+        const txnToContract_s = await sign_me(txnToContract);
         const txnFromContracts_s = txnFromContracts.map((txn) => algosdk.signLogicSigTransactionObject(txn, ctc_prog).blob);
         const txns_s = [
           txnAppl_s,
@@ -648,7 +732,7 @@ export const connectAccount = async (networkAccount) => {
     const appApproval0_subst = replaceAddr('Deployer', thisAcc.addr, appApproval0);
     const appApproval0_bin = await compileTEAL('appApproval0', appApproval0_subst);
     const appClear_bin = await compileTEAL('appClear', appClear);
-    const createRes = await sign_and_send_sync('ApplicationCreate', thisAcc.sk, algosdk.makeApplicationCreateTxn(thisAcc.addr, await getTxnParams(), algosdk.OnApplicationComplete.NoOpOC, appApproval0_bin.result, appClear_bin.result, 0, 0, 2, 1));
+    const createRes = await sign_and_send_sync('ApplicationCreate', thisAcc, algosdk.makeApplicationCreateTxn(thisAcc.addr, await getTxnParams(), algosdk.OnApplicationComplete.NoOpOC, appApproval0_bin.result, appClear_bin.result, 0, 0, 2, 1));
     const ApplicationID = createRes['application-index'];
     if (!ApplicationID) {
       throw Error(`No application-index in ${JSON.stringify(createRes)}`);
@@ -669,9 +753,11 @@ export const connectAccount = async (networkAccount) => {
       ...txnToHandlers,
     ];
     algosdk.assignGroupID(txns);
-    const txnUpdate_s = txnUpdate.signTxn(thisAcc.sk);
-    const txnToContract_s = txnToContract.signTxn(thisAcc.sk);
-    const txnToHandlers_s = txnToHandlers.map((tx) => tx.signTxn(thisAcc.sk));
+    const txnUpdate_s = await signTxn(thisAcc, txnUpdate);
+    const txnToContract_s = await signTxn(thisAcc, txnToContract);
+    const txnToHandlers_s = await Promise.all(
+      txnToHandlers.map(async (tx) => await signTxn(thisAcc, tx))
+    );
     const txns_s = [
       txnUpdate_s,
       txnToContract_s,
@@ -789,6 +875,20 @@ export const newAccountFromSecret = async (secret) => {
   const sk = ethers.utils.arrayify(secret);
   const mnemonic = algosdk.secretKeyToMnemonic(sk);
   return await newAccountFromMnemonic(mnemonic);
+};
+export const newAccountFromAlgoSigner = async (addr, AlgoSigner, ledger) => {
+  if (!AlgoSigner) {
+    throw Error(`AlgoSigner is falsy`);
+  }
+  const accts = await AlgoSigner.accounts({ledger});
+  if (!Array.isArray(accts)) {
+    throw Error(`AlgoSigner.accounts('${ledger}') is not an array: ${accts}`);
+  }
+  if (!accts.map(x => x.address).includes(addr)) {
+    throw Error(`Address ${addr} not found in AlgoSigner accounts`);
+  }
+  const networkAccount = {addr, AlgoSigner};
+  return await connectAccount(networkAccount);
 };
 export const getNetworkTime = async () => bigNumberify(await getLastRound());
 export const waitUntilTime = async (targetTime, onProgress) => {
