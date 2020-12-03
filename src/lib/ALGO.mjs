@@ -327,6 +327,40 @@ const getTxnParams = async () => {
   }
 };
 
+// XXX deleteme
+function unclean_for_AlgoSigner(txnOrig) {
+  console.log({m: 'unclean', from: txnOrig.from});
+  const txn = {...txnOrig};
+  Object.keys({...txnOrig}).forEach(key => {
+    if(txn[key] === undefined || txn[key] === null){
+        delete txn[key];
+    }
+  });
+
+  // Modify base64 encoded fields
+  if ('note' in txn && txn.note !== undefined) {
+      txn.note = new Uint8Array(Buffer.from(txn.note));
+  }
+  // Application transactions only
+  if(txn && txn.type === 'appl'){
+    if('appApprovalProgram' in txn){
+      txn.appApprovalProgram = Uint8Array.from(Buffer.from(txn.appApprovalProgram,'base64'));
+    }
+    if('appClearProgram' in txn){
+      txn.appClearProgram = Uint8Array.from(Buffer.from(txn.appClearProgram,'base64'));
+    }
+    if('appArgs' in txn){
+      var tempArgs = [];
+      txn.appArgs.forEach(element => {
+          // logging.log(element);
+          tempArgs.push(Uint8Array.from(Buffer.from(element,'base64')));
+      });
+      txn.appArgs = tempArgs;
+    }
+  }
+  return txn;
+}
+
 // genesisHash, note_str are possibly optional
 const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   // Make a copy with just the properties, because reasons
@@ -374,6 +408,9 @@ const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   if (txn.appClearProgram) {
     txn.appClearProgram = uint8ArrayToStr(txn.appClearProgram, 'base64');
   }
+  if (txn.group) {
+    txn.group = uint8ArrayToStr(txn.group, 'base64');
+  }
 
   console.log('txn after:');
   console.log(txn);
@@ -419,6 +456,7 @@ export const transfer = async (from, to, value, AlgoSigner = null, ledger = null
     // because it's clearly not compatible
     return await sign_and_send_sync_AlgoSigner(AlgoSigner, ledger, params, note_str, label, txn);
   } else {
+    console.log(`transfer: sign_and_send_sync`);
     return await sign_and_send_sync(label, sender, txn, params.genesisHash, note_str);
   }
 };
@@ -732,6 +770,7 @@ export const connectAccount = async (networkAccount) => {
     const appApproval0_subst = replaceAddr('Deployer', thisAcc.addr, appApproval0);
     const appApproval0_bin = await compileTEAL('appApproval0', appApproval0_subst);
     const appClear_bin = await compileTEAL('appClear', appClear);
+    console.log(`deployP: sign_and_send_sync`);
     const createRes = await sign_and_send_sync('ApplicationCreate', thisAcc, algosdk.makeApplicationCreateTxn(thisAcc.addr, await getTxnParams(), algosdk.OnApplicationComplete.NoOpOC, appApproval0_bin.result, appClear_bin.result, 0, 0, 2, 1));
     const ApplicationID = createRes['application-index'];
     if (!ApplicationID) {
@@ -752,12 +791,38 @@ export const connectAccount = async (networkAccount) => {
       txnToContract,
       ...txnToHandlers,
     ];
+
     algosdk.assignGroupID(txns);
+    // Sorry this is so dumb
+    if (thisAcc.AlgoSigner) {
+      const roundtrip_txns = txns
+        .map(x => clean_for_AlgoSigner(x))
+        .map(x => unclean_for_AlgoSigner(x));
+
+      // console.log(`deployP: group`);
+      // console.log(Buffer.from(txns[0].group, 'base64').toString('base64'));
+
+      algosdk.assignGroupID(roundtrip_txns);
+      // console.log(`deploy: roundtrip group`);
+      // console.log(Buffer.from(roundtrip_txns[0].group, 'base64').toString('base64'));
+
+      const group = roundtrip_txns[0].group;
+      for (const txn of txns) {
+        txn.group = group;
+      }
+    }
+
+    console.log(`deployP: sign txnUpdate`);
     const txnUpdate_s = await signTxn(thisAcc, txnUpdate);
+    console.log(`deployP: sign txnToContract`);
     const txnToContract_s = await signTxn(thisAcc, txnToContract);
-    const txnToHandlers_s = await Promise.all(
-      txnToHandlers.map(async (tx) => await signTxn(thisAcc, tx))
-    );
+    console.log(`deployP: sign each txnToHandlers`);
+    // This is written a dumb way to make sure signatures happen one at a time.
+    const txnToHandlers_s = [];
+    for (const tx of txnToHandlers) {
+      console.log(`deployP: sign another txnToHandler`);
+      txnToHandlers_s.push(await signTxn(thisAcc, tx))
+    }
     const txns_s = [
       txnUpdate_s,
       txnToContract_s,
