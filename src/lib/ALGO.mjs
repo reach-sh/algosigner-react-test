@@ -1,6 +1,8 @@
 // XXX: do not import any types from algosdk; instead copy/paste them below
 // XXX: can stop doing this workaround once @types/algosdk is shippable
-import algosdk from 'algosdk';
+import algosdk, { makeKeyRegistrationTxnWithSuggestedParams } from 'algosdk';
+import msgpack from '@msgpack/msgpack';
+import algosdk__src__transaction from 'algosdk/src/transaction';
 import base32 from 'hi-base32';
 import ethers from 'ethers';
 import url from 'url';
@@ -327,9 +329,37 @@ const getTxnParams = async () => {
   }
 };
 
-// XXX deleteme
+function regroup(thisAcc, txns) {
+  // Sorry this is so dumb.
+  // Basically, if these go thru AlgoSigner,
+  // it will mangle them,
+  //  so we need to recalculate the group hash.
+  if (thisAcc.AlgoSigner) {
+    const roundtrip_txns = txns
+      .map(x => clean_for_AlgoSigner(x))
+      .map(x => unclean_for_AlgoSigner(x));
+
+    // console.log(`deployP: group`);
+    // console.log(Buffer.from(txns[0].group, 'base64').toString('base64'));
+
+    algosdk.assignGroupID(roundtrip_txns);
+    // console.log(`deploy: roundtrip group`);
+    // console.log(Buffer.from(roundtrip_txns[0].group, 'base64').toString('base64'));
+
+    const group = roundtrip_txns[0].group;
+    for (const txn of txns) {
+      txn.group = group;
+    }
+    return roundtrip_txns;
+  } else {
+    return txns;
+  }
+}
+
+// A copy/paste of some logic from AlgoSigner
+// packages/extension/src/background/messaging/task.ts
 function unclean_for_AlgoSigner(txnOrig) {
-  console.log({m: 'unclean', from: txnOrig.from});
+  // console.log({m: 'unclean', from: txnOrig.from});
   const txn = {...txnOrig};
   Object.keys({...txnOrig}).forEach(key => {
     if(txn[key] === undefined || txn[key] === null){
@@ -365,8 +395,8 @@ function unclean_for_AlgoSigner(txnOrig) {
 const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   // Make a copy with just the properties, because reasons
   const txn = {...txnOrig};
-  console.log('txn before:');
-  console.log({...txnOrig});
+  // console.log('txn before:');
+  // console.log({...txnOrig});
   // Weirdly, AlgoSigner *requires* the note to be a string
   if (note_str) {
     txn.note = note_str;
@@ -381,7 +411,17 @@ const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   if (txn.type !== 'appl') {
     delete txn.appArgs;
   } else {
-    txn.appArgs = [uint8ArrayToStr(txn.appArgs, 'base64')]; // XXX ?????
+    if (txn.appArgs) {
+      console.log('txn.appArgs before "cleaning:"');
+      console.log(txn.appArgs);
+      if (txn.appArgs.length === 0) {
+        txn.appArgs = [];
+      } else {
+        txn.appArgs = [uint8ArrayToStr(txn.appArgs, 'base64')]; // XXX ?????
+      }
+      console.log('txn.appArgs after "cleaning":');
+      console.log(txn.appArgs);
+    }
   }
 
   // Validation failed for transaction because of invalid properties [from,to]
@@ -396,8 +436,11 @@ const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
   if (genesisHash) {
     txn.genesisHash = genesisHash; // replaces Uint8Array w/ string
   } else if (txn.genesisHash) {
-    txn.genesisHash = uint8ArrayToStr(txn.genesisHash, 'base64');
+    if (typeof txn.genesisHash !== 'string') {
+      txn.genesisHash = uint8ArrayToStr(txn.genesisHash, 'base64');
+    }
   }
+  console.log({genesisHash: txn.genesisHash});
   // uncaught (in promise) lease must be a Uint8Array.
   delete txn.lease; // it is... but how about we just delete it instead
 
@@ -412,8 +455,11 @@ const clean_for_AlgoSigner = (txnOrig, genesisHash, note_str) => {
     txn.group = uint8ArrayToStr(txn.group, 'base64');
   }
 
-  console.log('txn after:');
-  console.log(txn);
+  // ???
+  txn.flatFee = true;
+
+  // console.log('txn after:');
+  // console.log(txn);
   return txn;
   // const txn_s = await AlgoSigner.sign(txn);
 }
@@ -541,28 +587,58 @@ const doQuery = async (dhead, query) => {
   const txn = res.transactions[0];
   return txn;
 };
+// txnOrig :: A
+// clean_for_AlgoSigner :: A -> B
+// unclean_for_AlgoSigner :: B -> A // sort of but not exactly A
+// algoSigner :: B -> C
+// send :: D -> E
+// txnSign :: A -> D
+// \stx-obj -> Buffer.from(stx_obj.blob, 'base64') :: C -> D
+// do a message unpack on the signed txn to see what's actually different
 async function signTxn(networkAccount, txnOrig, genesisHash, note_str) {
   const {sk, AlgoSigner} = networkAccount;
-  if (sk) {
+  // XXX TODO prefer sk if available
+  if (!AlgoSigner && sk) {
     const tx = txnOrig.signTxn(sk);
-    return {
+    const ret = {
       tx,
       txID: txnOrig.txID().toString(),
       lastRound: txnOrig.lastRound,
-    };
+    }
+    return ret;
   } else if (AlgoSigner) {
     // TODO: clean up txn before signing
     const txn = clean_for_AlgoSigner(txnOrig, genesisHash, note_str);
 
+    // XXX
+    if (sk) {
+      const re_tx = txnOrig.signTxn ? txnOrig : new algosdk__src__transaction.Transaction(txnOrig);
+      re_tx.group = txnOrig.group;
+
+      const sk_tx = re_tx.signTxn(sk);
+      const sk_ret = {
+        tx: sk_tx,
+        txID: re_tx.txID().toString(),
+        lastRound: txnOrig.lastRound,
+      }
+      console.log('signed sk_ret');
+      console.log({txID: sk_ret.txID});
+      console.log(msgpack.decode(sk_ret.tx));
+    }
     console.log('AlgoSigner.sign ...');
     const stx_obj = await AlgoSigner.sign(txn);
     console.log('...signed');
-    console.log({stx_obj});
-    return {
+    // console.log({stx_obj});
+    const ret = {
       tx: Buffer.from(stx_obj.blob, 'base64'),
       txID: stx_obj.txID,
       lastRound: txnOrig.lastRound,
     };
+
+    console.log('signed AlgoSigner')
+    console.log({txID: ret.txID});
+    console.log(msgpack.decode(ret.tx));
+    return ret;
   } else {
     throw Error(`networkAccount has neither sk nor AlgoSigner: ${JSON.stringify(networkAccount)}`);
   }
@@ -665,13 +741,55 @@ export const connectAccount = async (networkAccount) => {
           ...txnFromContracts,
         ];
         algosdk.assignGroupID(txns);
+        regroup(thisAcc, txns);
+
+        // XXX
+        console.log('txnAppl');
+        console.log(txnAppl);
+        console.log(txnAppl.txID());
+        // console.log('txnApple regrouped');
+        // const rg0 = regrouped[0]
+        // console.log(rg0);
+        // const rg0t = new algosdk__src__transaction.Transaction(rg0);
+        // console.log('pre-grouped ID');
+        // console.log(rg0t.txID());
+        // rg0t.group = rg0.group;
+        // console.log('grouped ID');
+        // console.log(rg0t.txID());
+        // XXX
+
+        const signLSTO = (txn, ls) => {
+          // This part simulates signLogicSigTransactionObject
+          // but does it a little differently
+          // see: algosdk src/main.js
+          // algosdk.signLogicSigTransactionObject(txn, ls)
+          // XXX
+          console.log(txn);
+          const encodeme = txn.get_obj_for_encoding
+            ? txn.get_obj_for_encoding()
+            : txn;
+          const tx_obj = {
+            txID: txn.txID
+              ? txn.txID()
+              : (new algosdk__src__transaction.Transaction(txn)).txID(),
+            blob: {
+              lsig: ls.get_obj_for_encoding(),
+              txn: algosdk.encodeObj(encodeme),
+            },
+          };
+          return {
+            tx: tx_obj.blob,
+            txID: tx_obj.txID,
+            lastRound: txn.lastRound,
+          }
+        };
         const sign_me = async (x) => await signTxn(thisAcc, x);
         const txnAppl_s = await sign_me(txnAppl);
-        const txnFromHandler_s = algosdk.signLogicSigTransactionObject(txnFromHandler, handler_with_args).blob;
-        debug(`txnFromHandler_s: ${base64ify(txnFromHandler_s)}`);
         const txnToHandler_s = await sign_me(txnToHandler);
+        const txnFromHandler_s = signLSTO(txnFromHandler, handler_with_args);
+        // debug(`txnFromHandler_s: ${base64ify(txnFromHandler_s.tx)}`);
         const txnToContract_s = await sign_me(txnToContract);
-        const txnFromContracts_s = txnFromContracts.map((txn) => algosdk.signLogicSigTransactionObject(txn, ctc_prog).blob);
+        const txnFromContracts_s = txnFromContracts.map((txn) => signLSTO(txn, ctc_prog));
         const txns_s = [
           txnAppl_s,
           txnToHandler_s,
@@ -684,9 +802,11 @@ export const connectAccount = async (networkAccount) => {
         try {
           res = await sendAndConfirm(txns_s, txnAppl);
         } catch (e) {
-          if (e.type == 'sendRawTransaction') {
+          if (e.type === 'sendRawTransaction') {
+            console.log(e);
             throw Error(`${dhead} --- FAIL:\n${format_failed_request(e.e)}`);
           } else {
+            console.log(e);
             throw Error(`${dhead} --- FAIL:\n${JSON.stringify(e)}`);
           }
         }
@@ -793,24 +913,7 @@ export const connectAccount = async (networkAccount) => {
     ];
 
     algosdk.assignGroupID(txns);
-    // Sorry this is so dumb
-    if (thisAcc.AlgoSigner) {
-      const roundtrip_txns = txns
-        .map(x => clean_for_AlgoSigner(x))
-        .map(x => unclean_for_AlgoSigner(x));
-
-      // console.log(`deployP: group`);
-      // console.log(Buffer.from(txns[0].group, 'base64').toString('base64'));
-
-      algosdk.assignGroupID(roundtrip_txns);
-      // console.log(`deploy: roundtrip group`);
-      // console.log(Buffer.from(roundtrip_txns[0].group, 'base64').toString('base64'));
-
-      const group = roundtrip_txns[0].group;
-      for (const txn of txns) {
-        txn.group = group;
-      }
-    }
+    regroup(thisAcc, txns);
 
     console.log(`deployP: sign txnUpdate`);
     const txnUpdate_s = await signTxn(thisAcc, txnUpdate);
@@ -941,7 +1044,9 @@ export const newAccountFromSecret = async (secret) => {
   const mnemonic = algosdk.secretKeyToMnemonic(sk);
   return await newAccountFromMnemonic(mnemonic);
 };
-export const newAccountFromAlgoSigner = async (addr, AlgoSigner, ledger) => {
+// If mnemonic is specified, it prints extra debug stuff
+// comparing AlgoSigner to regular signing
+export const newAccountFromAlgoSigner = async (addr, AlgoSigner, ledger, mnemonic) => {
   if (!AlgoSigner) {
     throw Error(`AlgoSigner is falsy`);
   }
@@ -952,7 +1057,14 @@ export const newAccountFromAlgoSigner = async (addr, AlgoSigner, ledger) => {
   if (!accts.map(x => x.address).includes(addr)) {
     throw Error(`Address ${addr} not found in AlgoSigner accounts`);
   }
-  const networkAccount = {addr, AlgoSigner};
+  let networkAccount = {addr, AlgoSigner};
+  if (mnemonic) {
+    networkAccount = algosdk.mnemonicToSecretKey(mnemonic);
+    networkAccount.AlgoSigner = AlgoSigner;
+    if (addr !== networkAccount.addr) {
+      throw Error(`mnemonic does not pertain to address ${addr}`);
+    }
+  }
   return await connectAccount(networkAccount);
 };
 export const getNetworkTime = async () => bigNumberify(await getLastRound());

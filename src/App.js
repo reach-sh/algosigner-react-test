@@ -13,7 +13,8 @@ class App extends React.Component {
   async doTheThing() {
     if (!AlgoSigner) {
       alert('Sorry, no AlgoSigner detected.');
-      throw Error(`no AlgoSigner`);
+      return;
+      // throw Error(`no AlgoSigner`);
     }
 
     await AlgoSigner.connect();
@@ -50,8 +51,8 @@ class App extends React.Component {
     // console.log({acc: test1});
 
     const addr_alice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
-    const alice = await reach.newAccountFromAlgoSigner(addr_alice, AlgoSigner, ledger);
-    // const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
+    const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
+    const alice = await reach.newAccountFromAlgoSigner(addr_alice, AlgoSigner, ledger, mnemonic_alice);
     // const alice = await reach.newAccountFromMnemonic(mnemonic_alice);
 
     const mnemonic_bob = 'night salon gesture claw thing marine route dust bubble stand hungry morning teach section bulk daughter taste guide health gasp secret swap leave able marble';
