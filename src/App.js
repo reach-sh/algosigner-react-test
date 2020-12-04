@@ -5,12 +5,12 @@ import './App.css';
 import * as reach from './lib/ALGO';
 import * as backend from './build/index.main.mjs';
 
-const AlgoSigner = window.AlgoSigner;
-
 let didMutateWaitPort = false;
 
 class App extends React.Component {
   async doTheThing() {
+    const AlgoSigner = window.AlgoSigner;
+
     if (!AlgoSigner) {
       alert('Sorry, no AlgoSigner detected.');
       return;
@@ -51,8 +51,8 @@ class App extends React.Component {
     // const test1 = await reach.newAccountFromMnemonic(mnemonic_test1);
     // console.log({acc: test1});
 
-    const addr_alice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
     const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
+    const addr_alice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
     const alice = await reach.newAccountFromAlgoSigner(addr_alice, AlgoSigner, ledger, mnemonic_alice);
     // const alice = await reach.newAccountFromMnemonic(mnemonic_alice);
 
