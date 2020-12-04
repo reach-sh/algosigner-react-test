@@ -765,18 +765,19 @@ export const connectAccount = async (networkAccount) => {
           // algosdk.signLogicSigTransactionObject(txn, ls)
           // XXX
           console.log(txn);
-          const encodeme = txn.get_obj_for_encoding
-            ? txn.get_obj_for_encoding()
-            : txn;
-          const tx_obj = {
-            txID: txn.txID
-              ? txn.txID()
-              : (new algosdk__src__transaction.Transaction(txn)).txID(),
-            blob: {
-              lsig: ls.get_obj_for_encoding(),
-              txn: algosdk.encodeObj(encodeme),
-            },
-          };
+          // const encodeme = txn.get_obj_for_encoding
+          //   ? txn.get_obj_for_encoding()
+          //   : txn;
+          // const tx_obj = {
+          //   txID: txn.txID
+          //     ? txn.txID()
+          //     : (new algosdk__src__transaction.Transaction(txn)).txID(),
+          //   blob: {
+          //     lsig: ls.get_obj_for_encoding(),
+          //     txn: algosdk.encodeObj(encodeme),
+          //   },
+          // };
+          const tx_obj = algosdk.signLogicSigTransactionObject(txn, ls);
           return {
             tx: tx_obj.blob,
             txID: tx_obj.txID,

@@ -40,6 +40,7 @@ class App extends React.Component {
 
     // reach.setAlgodClient(algodClient);
     // reach.setIndexer(indexer);
+    reach.setDEBUG(true);
     if (!didMutateWaitPort) {
       reach.setWaitPort(false);
       didMutateWaitPort = true;
