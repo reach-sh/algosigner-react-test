@@ -5,8 +5,7 @@ import AttacherViews from './views/AttacherViews';
 import {renderDOM, renderView} from './views/render';
 import './index.css';
 import * as backend from './build/index.main.mjs';
-// import * as reach from '@reach-sh/stdlib/ETH';
-import * as reach from './lib/ETH';
+import * as reach from './lib/ALGO';
 
 const handToInt = {'ROCK': 0, 'PAPER': 1, 'SCISSORS': 2};
 const intToOutcome = ['Bob wins!', 'Draw!', 'Alice wins!'];
@@ -19,10 +18,27 @@ class App extends React.Component {
     this.state = {view: 'ConnectAccount', ...defaults};
   }
   async componentDidMount() {
-    const acc = await reach.getDefaultAccount();
-    const balAtomic = await reach.balanceOf(acc);
-    const bal = reach.formatCurrency(balAtomic, 4);
-    this.setState({acc, bal});
+    // const addrAlice = '0x425425f9FF88Ec1759D012b37a878C885d064A55';
+    // const addrBob = '0x39320aBE6dAE42d053bE46A4664f33a5aEa6E72B';
+
+    const AlgoSigner = window.AlgoSigner;
+
+    if (!AlgoSigner) {
+      alert('Sorry, no AlgoSigner detected.');
+      return;
+      // throw Error(`no AlgoSigner`);
+    }
+    await AlgoSigner.connect();
+    reach.setDEBUG(true);
+    reach.setWaitPort(false);
+    const ledger = 'Localhost';
+    // const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
+    const addrAlice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
+    const alice = await reach.newAccountFromAlgoSigner(addrAlice, AlgoSigner, ledger); //, mnemonic_alice);
+    const addrBob = '574TXHFNAFMS7KPHCBJL6TVYXZCEXF6PVGA2GRB3SQO3HPCWDNW44VKJR4';
+    const bob = await reach.newAccountFromAlgoSigner(addrBob, AlgoSigner, ledger);
+
+    this.setState({addrAlice, addrBob, alice, bob});
 
     try {
       const faucet = await reach.getFaucet();
@@ -32,12 +48,23 @@ class App extends React.Component {
     }
   }
   async fundAccount(fundAmount) {
-    await reach.transfer(this.state.faucet, this.state.acc, reach.parseCurrency(fundAmount));
+    const {alice, bob, faucet} = this.state;
+    const amt = reach.parseCurrency(fundAmount);
+    await reach.transfer(faucet, alice, amt);
+    await reach.transfer(faucet, bob,  amt);
     this.setState({view: 'DeployerOrAttacher'});
   }
   async skipFundAccount() { this.setState({view: 'DeployerOrAttacher'}); }
-  selectAttacher() { this.setState({view: 'Wrapper', ContentView: Attacher}); }
-  selectDeployer() { this.setState({view: 'Wrapper', ContentView: Deployer}); }
+  async selectAttacher() {
+    // XXX
+    const acc = this.state.bob; // await reach.getDefaultAccount();
+    this.setState({acc, view: 'Wrapper', ContentView: Attacher});
+  }
+  async selectDeployer() {
+    // XXX
+    const acc = this.state.alice; // await reach.getDefaultAccount();
+    this.setState({acc, view: 'Wrapper', ContentView: Deployer});
+  }
   render() { return renderView(this, AppViews); }
 }
 

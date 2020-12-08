@@ -28,9 +28,13 @@ git checkout localhost-3
 
 Build it:
 
+
+
 ```
+## XXX: using compiler from reach-lang commit 9313608b2b53db55fff0670c6ad1daf25a5bdee7
+
 npm install    # only needed the first time
-(cd src && reach compile) # whenever you change the .rsh
+(cd src && ../reach compile) # whenever you change the .rsh
 npm run build  # any time you rebuild
 ```
 

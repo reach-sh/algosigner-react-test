@@ -29,15 +29,13 @@ exports.ConnectAccount = class extends React.Component {
 
 exports.FundAccount = class extends React.Component {
   render() {
-    const {addr, bal, standardUnit, defaultFundAmt, parent} = this.props;
+    const {addrAlice, addrBob, standardUnit, defaultFundAmt, parent} = this.props;
     const amt = (this.state || {}).amt || defaultFundAmt;
     return (
       <div>
-        <h2>Fund account</h2>
+        <h2>Fund accounts</h2>
         <br />
-        Address: {addr}
-        <br />
-        Balance: {bal} {standardUnit}
+        Addresses: {addrAlice}, {addrBob}
         <hr />
         Would you like to fund your account with additional {standardUnit}?
         <br />
