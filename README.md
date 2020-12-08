@@ -30,6 +30,7 @@ Build it:
 
 ```
 npm install    # only needed the first time
+(cd src && reach compile) # whenever you change the .rsh
 npm run build  # any time you rebuild
 ```
 
