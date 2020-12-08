@@ -18,21 +18,16 @@ class App extends React.Component {
     this.state = {view: 'ConnectAccount', ...defaults};
   }
   async componentDidMount() {
-    // const addrAlice = '0x425425f9FF88Ec1759D012b37a878C885d064A55';
-    // const addrBob = '0x39320aBE6dAE42d053bE46A4664f33a5aEa6E72B';
-
     const AlgoSigner = window.AlgoSigner;
 
     if (!AlgoSigner) {
       alert('Sorry, no AlgoSigner detected.');
       return;
-      // throw Error(`no AlgoSigner`);
     }
     await AlgoSigner.connect();
     reach.setDEBUG(true);
     reach.setWaitPort(false);
     const ledger = 'Localhost';
-    // const mnemonic_alice = 'april oblige hair cup vendor glove lazy stumble exclude fever milk badge select witness seat true cruise paddle weird visa oak retire elite able shy';
     const addrAlice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
     const alice = await reach.newAccountFromAlgoSigner(addrAlice, AlgoSigner, ledger); //, mnemonic_alice);
     const addrBob = '574TXHFNAFMS7KPHCBJL6TVYXZCEXF6PVGA2GRB3SQO3HPCWDNW44VKJR4';
@@ -56,13 +51,11 @@ class App extends React.Component {
   }
   async skipFundAccount() { this.setState({view: 'DeployerOrAttacher'}); }
   async selectAttacher() {
-    // XXX
-    const acc = this.state.bob; // await reach.getDefaultAccount();
+    const acc = this.state.bob;
     this.setState({acc, view: 'Wrapper', ContentView: Attacher});
   }
   async selectDeployer() {
-    // XXX
-    const acc = this.state.alice; // await reach.getDefaultAccount();
+    const acc = this.state.alice;
     this.setState({acc, view: 'Wrapper', ContentView: Deployer});
   }
   render() { return renderView(this, AppViews); }
