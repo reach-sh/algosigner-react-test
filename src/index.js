@@ -5,7 +5,8 @@ import AttacherViews from './views/AttacherViews';
 import {renderDOM, renderView} from './views/render';
 import './index.css';
 import * as backend from './build/index.main.mjs';
-import * as reach from './lib/ALGO';
+// import * as reach from './lib/ALGO';
+import * as reach from '@reach-sh/stdlib/ALGO';
 
 const handToInt = {'ROCK': 0, 'PAPER': 1, 'SCISSORS': 2};
 const intToOutcome = ['Bob wins!', 'Draw!', 'Alice wins!'];
@@ -25,8 +26,9 @@ class App extends React.Component {
       return;
     }
     await AlgoSigner.connect();
-    reach.setDEBUG(true);
-    reach.setWaitPort(false);
+    // reach.setDEBUG(true);
+    // reach.setWaitPort(false);
+    reach.setBrowser(true);
     const ledger = 'Localhost';
     const addrAlice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';
     const alice = await reach.newAccountFromAlgoSigner(addrAlice, AlgoSigner, ledger); //, mnemonic_alice);
@@ -85,7 +87,7 @@ class Deployer extends Player {
     const ctc = this.props.acc.deploy(backend);
     this.setState({view: 'Deploying', ctc});
     this.wager = reach.parseCurrency(this.state.wager); // UInt
-    backend.Alice(reach, ctc, this);
+    backend.Alice(ctc, this);
     const ctcInfoStr = JSON.stringify(await ctc.getInfo(), null, 2);
     this.setState({view: 'WaitingForAttacher', ctcInfoStr});
   }
@@ -100,7 +102,7 @@ class Attacher extends Player {
   attach(ctcInfoStr) {
     const ctc = this.props.acc.attach(backend, JSON.parse(ctcInfoStr));
     this.setState({view: 'Attaching'});
-    backend.Bob(reach, ctc, this);
+    backend.Bob(ctc, this);
   }
   async acceptWager(wagerAtomic) { // Fun([UInt], Null)
     const wager = reach.formatCurrency(wagerAtomic, 4);
