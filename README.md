@@ -1,18 +1,12 @@
 Do the following things:
 
+## Run the dev server & algorand-devnet (incl. local proxy)
 
-## Run algod & indexer on localhost:4180 and localhost:8980, respectively
-
-Recommended approach: 
-
-In `reach-sh/reach-lang`:
+In the `src` folder:
 
 ```
-cd scripts/algorand-devnet
-docker-compose down
-make run
+REACH_CONNECTOR_MODE=ALGO reach react
 ```
-
 
 ## Install our fork of AlgoSigner
 
@@ -27,8 +21,6 @@ git checkout localhost-3
 (The following is simply abridged from the algosigner readme:)
 
 Build it:
-
-
 
 ```
 ## XXX: using compiler from reach-lang commit 9313608b2b53db55fff0670c6ad1daf25a5bdee7
@@ -49,16 +41,6 @@ First time:
 On rebuild:
 
 * just click the little refresh arrow after you've done `npm run build`
-
-
-## Run the dev server (incl. local proxy)
-
-In this folder (`reach-sh/algosigner-react-test`):
-
-```
-npm install
-npm run start
-```
 
 
 ## Add Alice's account to AlgoSigner
