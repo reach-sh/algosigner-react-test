@@ -5,7 +5,6 @@ import AttacherViews from './views/AttacherViews';
 import {renderDOM, renderView} from './views/render';
 import './index.css';
 import * as backend from './build/index.main.mjs';
-// import * as reach from './lib/ALGO';
 import * as reach from '@reach-sh/stdlib/ALGO';
 
 const handToInt = {'ROCK': 0, 'PAPER': 1, 'SCISSORS': 2};
@@ -26,8 +25,6 @@ class App extends React.Component {
       return;
     }
     await AlgoSigner.connect();
-    // reach.setDEBUG(true);
-    // reach.setWaitPort(false);
     reach.setBrowser(true);
     const ledger = 'Localhost';
     const addrAlice = 'FG344FZMR5ZGHSJIPGB2XBMPZLSBZJFBQY63Z5FQ44VGZ44WK3OPBVN7ZI';

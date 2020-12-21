@@ -43,18 +43,27 @@ On rebuild:
 * just click the little refresh arrow after you've done `npm run build`
 
 
-## Add Alice's account to AlgoSigner
+## Add Alice's & Bob's accounts to AlgoSigner
 
-See App.js for Alice's mnemonic.
+See SECRETS.md for Alice's & Bob's account details.
 
 * Click the AlgoSigner extension, click the top-right dropdown, select Localhost.
 * Click Add account & add Alice's account by mnemonic
+* Do the same for Bob
 
 
 ## Do the thing, in the browser
 
 Open http://localhost:3000 in Chrome w/ AlgoSigner installed
 
-Open the console, click the button, watch it go & sign the things.
+If it alerts "no AlgoSigner", try a hard refresh. (CTRL+SHIFT+R)
 
-If it says "no AlgoSigner" just try again.
+## Clean up
+
+Press CTRL+C in the terminal running the dev server to kill it.
+
+To kill the algorand-devnet, in the `src` folder, run:
+
+```
+reach react-down
+```

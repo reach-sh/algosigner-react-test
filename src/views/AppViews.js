@@ -28,6 +28,10 @@ exports.ConnectAccount = class extends React.Component {
 }
 
 exports.FundAccount = class extends React.Component {
+  async fundAccountClicked(button) {
+    button.disabled = true;
+    button.innerHTML = 'Funding...'
+  }
   render() {
     const {addrAlice, addrBob, standardUnit, defaultFundAmt, parent} = this.props;
     const amt = (this.state || {}).amt || defaultFundAmt;
@@ -46,7 +50,10 @@ exports.FundAccount = class extends React.Component {
           placeholder={defaultFundAmt}
           onChange={(e) => this.setState({amt: e.currentTarget.value})}
         />
-        <button onClick={() => parent.fundAccount(amt)}>Fund Account</button>
+        <button onClick={(e) => {
+          this.fundAccountClicked(e.currentTarget);
+          parent.fundAccount(amt);
+        }}>Fund Accounts</button>
         <button onClick={() => parent.skipFundAccount()}>Skip</button>
       </div>
     );
