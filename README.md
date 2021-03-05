@@ -1,3 +1,16 @@
+## WARNING: OUTDATED!
+
+This repository is outdated.
+
+For up-to-date information,
+please see [tut-8](https://docs.reach.sh/tut-8.html)
+and the instructions for [Testing Reach programs in the browser](https://docs.reach.sh/guide-browser-testing.html).
+
+What follows is outdated, is kept purely for historical purposes, and may be deleted.
+
+-----
+
+
 Do the following things:
 
 ## Run the dev server & algorand-devnet (incl. local proxy)
